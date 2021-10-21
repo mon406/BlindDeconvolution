@@ -8,16 +8,17 @@
 
 
 /* 定義する関数 */
-void CG_method(Mat& Ax, Mat& x, Mat& b);
+void CG_method(Mat& Ax, Mat& x, Mat& b, double& penalty);
 void CG_method(Mat& Ax0, Mat& Ax1, Mat& Ax2, Mat& x0, Mat& x1, Mat& x2, Mat& b0, Mat& b1, Mat& b2);
 void calc_Ap_FFT(Mat& Ax, Mat& x, Mat& p, Mat& dst);
 
 
 /* 関数 */
-void CG_method(Mat& Ax, Mat& x, Mat& b) {
+void CG_method(Mat& Ax, Mat& x, Mat& b, double& penalty) {
 	/* 設定値 */
-	int MaxIteration = 100;
+	int MaxIteration = 10;
 	double ErrorThreshold = 1.0e-04;
+	double incr_Parameter = 2.0, decr_Parameter = 2.0, blanc_Parameter = 10.0;
 
 	Mat Residual = Mat::zeros(x.size(), CV_64FC1);		// 残差ベクトル
 	Mat Perpendicular = Mat::zeros(x.size(), CV_64FC1);	// 探索方向ベクトル
@@ -43,7 +44,8 @@ void CG_method(Mat& Ax, Mat& x, Mat& b) {
 			double Numerator = multi_vector(Residual, Perpendicular);		// ベクトルの内積
 			calc_Ap_FFT(Ax, x, Perpendicular, AP);
 			double Denominator = multi_vector(Perpendicular, AP);
-			Alpha = (double)(Numerator / Denominator);
+			if (Denominator != 0) { Alpha = (double)(Numerator / Denominator); }
+			else { cout << "WARNING! CG_method() : Can't calculate Alpha because of Denominator = 0" << endl; break; }
 
 			/* Calculate x */
 			New_x = x + Alpha * Perpendicular;
@@ -52,19 +54,27 @@ void CG_method(Mat& Ax, Mat& x, Mat& b) {
 			New_Residual = Residual - Alpha * AP;
 			energy = (double)norm(New_Residual);
 			energy /= (double)((double)New_Residual.cols * (double)New_Residual.rows);
+			//cout << "   energy = " << (double)energy << endl;	// 確認用
 			if (energy < ErrorThreshold) { break; }
 
 			/* Calculate Beta */
 			double Numerator2 = multi_vector(New_Residual, New_Residual);		// ベクトルの内積
 			double Denominator2 = multi_vector(Residual, Residual);
-			Beta = (double)(Numerator2 / Denominator2);
+			if (Denominator2 != 0) { Beta = (double)(Numerator2 / Denominator2); }
+			else { cout << "WARNING! CG_method() : Can't calculate Beta because of Denominator2 = 0" << endl; break; }
 
 			/* Calculate Perpendicular */
 			Perpendicular = New_Residual + Beta * Perpendicular;
 
 			New_Residual.copyTo(Residual);
 			New_x.copyTo(x);
+			//double main_diff = (double)norm(New_Residual);
+			//double sub_diff = (double)norm(Perpendicular) * (double)blanc_Parameter;
+			////cout << "   main_diff = " << (double)main_diff << " , sub_diff = " << (double)sub_diff << endl;	// 確認用
+			//if (main_diff > sub_diff) { penalty *= incr_Parameter; }
+			//else if (main_diff < sub_diff) { penalty /= decr_Parameter; }
 		}
+		cout << "   energy = " << (double)energy << endl;	// 確認用
 	}
 
 	New_x.copyTo(x);
@@ -103,44 +113,60 @@ void CG_method(Mat& Ax0, Mat& Ax1, Mat& Ax2, Mat& x0, Mat& x1, Mat& x2, Mat& b0,
 		Residual[0] = b0 - Ax0;
 		Residual[1] = b1 - Ax1;
 		Residual[2] = b2 - Ax2;
+		double before_color_mean[3], after_color_mean[3];
 		for (c = 0; c < 3; c++) {
+			before_color_mean[c] = (double)mean(x[c])[0];
 			Residual[c].copyTo(Perpendicular[c]);
 		}
 
-		double energy = 0.0;
 		/* 反復法 */
-		//for (int Iteration = 0; Iteration < MaxIteration; Iteration++) {
-		//	for (c = 0; c < 3; c++) {
-		//		/* Calculate Alpha */
-		//		double Numerator = multi_vector(Residual, Perpendicular);		// ベクトルの内積
-		//		calc_Ap_FFT(Ax[c], x[c], Perpendicular, AP);
-		//		double Denominator = multi_vector(Perpendicular, AP);
-		//		Alpha = (double)(Numerator / Denominator);
+		for (int Iteration = 0; Iteration < MaxIteration; Iteration++) {
+			double energy = 0.0;
+			//cout << "  " << (int)Iteration;	// 確認用
+			for (c = 0; c < 3; c++) {
+				/* Calculate Alpha */
+				double Numerator = multi_vector(Residual[c], Perpendicular[c]);		// ベクトルの内積
+				calc_Ap_FFT(Ax[c], x[c], Perpendicular[c], AP[c]);
+				double Denominator = multi_vector(Perpendicular[c], AP[c]);
+				Alpha[c] = (double)(Numerator / Denominator);
 
-		//		/* Calculate x */
-		//		New_x = x + Alpha * Perpendicular;
+				/* Calculate x */
+				New_x[c] = x[c] + Alpha[c] * Perpendicular[c];
 
-		//		/* Calculate Residual */
-		//		New_Residual = Residual - Alpha * AP;
-		//		energy = (double)norm(New_Residual);
-		//		energy /= (double)((double)New_Residual.cols * (double)New_Residual.rows);
-		//		if (energy < ErrorThreshold) { break; }
+				/* Calculate Residual */
+				New_Residual[c] = Residual[c] - Alpha[c] * AP[c];
+				energy = (double)norm(New_Residual[c]);
+				energy /= (double)((double)New_Residual[c].cols * (double)New_Residual[c].rows);
+				//cout << " :: " << (int)c << " : energy = " << (double)energy;	// 確認用
+				if (energy < ErrorThreshold || Iteration == MaxIteration - 1) {
+					cout << "  " << (int)Iteration << " : " << (int)c << " : energy = " << (double)energy << endl;	// 確認用
+					break;
+				}
 
-		//		/* Calculate Beta */
-		//		double Numerator2 = multi_vector(New_Residual, New_Residual);		// ベクトルの内積
-		//		double Denominator2 = multi_vector(Residual, Residual);
-		//		Beta = (double)(Numerator2 / Denominator2);
+				/* Calculate Beta */
+				double Numerator2 = multi_vector(New_Residual[c], New_Residual[c]);		// ベクトルの内積
+				double Denominator2 = multi_vector(Residual[c], Residual[c]);
+				Beta[c] = (double)(Numerator2 / Denominator2);
 
-		//		/* Calculate Perpendicular */
-		//		Perpendicular = New_Residual + Beta * Perpendicular;
+				/* Calculate Perpendicular */
+				Perpendicular[c] = New_Residual[c] + Beta[c] * Perpendicular[c];
 
-		//		New_Residual.copyTo(Residual);
-		//		New_x.copyTo(x);
-		//	}
-		//}
+				New_Residual[c].copyTo(Residual[c]);
+				New_x[c].copyTo(x[c]);
+			}
+			//cout << endl;	// 確認用
+		}
+
+		for (c = 0; c < 3; c++) {
+			after_color_mean[c] = (double)mean(New_x[c])[0];
+			New_x[c] *= (double)(before_color_mean[c] / after_color_mean[c]);
+			//normalize(New_x[c], New_x[c], 0, 255, NORM_MINMAX);
+		}
 	}
 
-	//New_x.copyTo(x);
+	New_x[0].copyTo(x0);
+	New_x[1].copyTo(x1);
+	New_x[2].copyTo(x2);
 }
 
 void calc_Ap_FFT(Mat& Ax, Mat& x, Mat& p, Mat& dst) {
@@ -157,16 +183,24 @@ void calc_Ap_FFT(Mat& Ax, Mat& x, Mat& p, Mat& dst) {
 	int Nsize = getOptimalDFTSize(Nplus);
 	//cout << "  FFT Size  : (" << Mplus << "," << Nplus << ") => (" << Msize << "," << Nsize << ")" << endl;	// 確認
 
+	Mat double_Ax_sub, double_x_sub, double_p_sub;
+	Mat planes_Ax[] = { Mat_<double>(double_Ax), Mat::zeros(double_Ax.size(), CV_64F) };
+	merge(planes_Ax, 2, double_Ax_sub);
+	Mat planes_x[] = { Mat_<double>(double_x), Mat::zeros(double_x.size(), CV_64F) };
+	merge(planes_x, 2, double_x_sub);
+	Mat planes_p[] = { Mat_<double>(double_p), Mat::zeros(double_p.size(), CV_64F) };
+	merge(planes_p, 2, double_p_sub);
+
 	/* DFT */
 	Mat dft_double_Ax = Mat::zeros(Msize, Nsize, CV_64FC2);
 	Mat dft_double_x = Mat::zeros(Msize, Nsize, CV_64FC2);
 	Mat dft_double_p = Mat::zeros(Msize, Nsize, CV_64FC2);
 	Mat dft_doubleQuantImg[3] = { Mat::zeros(Msize, Nsize, CV_64FC2), Mat::zeros(Msize, Nsize, CV_64FC2), Mat::zeros(Msize, Nsize, CV_64FC2) };
-	copyMakeBorder(double_Ax, dft_double_Ax, double_x.rows / 2, Msize - Mplus + double_x.rows / 2, double_x.cols / 2, Nsize - Nplus + double_x.cols / 2, BORDER_CONSTANT, (0.0, 0.0));
+	copyMakeBorder(double_Ax_sub, dft_double_Ax, double_x.rows / 2, Msize - Mplus + double_x.rows / 2, double_x.cols / 2, Nsize - Nplus + double_x.cols / 2, BORDER_CONSTANT, (0.0, 0.0));
 	dft(dft_double_Ax, dft_double_Ax);
-	copyMakeBorder(double_x, dft_double_x, double_Ax.rows / 2, Msize - Mplus + double_Ax.rows / 2, double_Ax.cols / 2, Nsize - Nplus + double_Ax.cols / 2, BORDER_REPLICATE);
+	copyMakeBorder(double_x_sub, dft_double_x, double_Ax.rows / 2, Msize - Mplus + double_Ax.rows / 2, double_Ax.cols / 2, Nsize - Nplus + double_Ax.cols / 2, BORDER_REPLICATE);
 	dft(dft_double_x, dft_double_x);
-	copyMakeBorder(double_p, dft_double_p, double_Ax.rows / 2, Msize - Mplus + double_Ax.rows / 2, double_Ax.cols / 2, Nsize - Nplus + double_Ax.cols / 2, BORDER_REPLICATE);
+	copyMakeBorder(double_p_sub, dft_double_p, double_Ax.rows / 2, Msize - Mplus + double_Ax.rows / 2, double_Ax.cols / 2, Nsize - Nplus + double_Ax.cols / 2, BORDER_REPLICATE);
 	dft(dft_double_p, dft_double_p);
 
 	/* Apを求める */
@@ -177,6 +211,7 @@ void calc_Ap_FFT(Mat& Ax, Mat& x, Mat& p, Mat& dst) {
 	/* inverseDFT */
 	Mat Ap;
 	dft(dft_Ap, dft_Ap, cv::DFT_INVERSE + cv::DFT_SCALE | cv::DFT_REAL_OUTPUT);
+	//dft_Ap.convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
 	Ap = dft_Ap(Rect(double_x.cols / 2, double_x.rows / 2, double_Ax.cols, double_Ax.rows));
 
 	Ap.copyTo(dst);

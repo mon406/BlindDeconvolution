@@ -9,27 +9,9 @@ const int filetersize_cols = 20;
 const int filetersize_rows = 20;
 
 /* 関数 */
-// カーネル画像の可視化
-void KernelImage_Visualization(Mat& KernelImage) {
-	Mat KernelImage_tmp = Mat(KernelImage.size(), CV_8UC1);
-	int xx, yy;
-	int Kernel_index;
-	double Kernel_tmp;
+void KernelImage_Visualization(Mat& KernelImage);	// カーネル画像の可視化
+void KernelMat_Normalization(Mat& inoutKernel);		// カーネル画像の正規化
 
-#pragma omp parallel for private(xx)
-	for (yy = 0; yy < KernelImage.rows; yy++) {
-		for (xx = 0; xx < KernelImage.cols; xx++) {
-			Kernel_index = yy * KernelImage.cols + xx;
-			Kernel_tmp = (double)KernelImage.at<double>(yy, xx);
-
-			Kernel_tmp *= 2;	// 見やすくするために×2
-			if (Kernel_tmp > MAX_INTENSE) { Kernel_tmp = MAX_INTENSE; }
-
-			KernelImage_tmp.data[Kernel_index] = (uchar)Kernel_tmp;
-		}
-	}
-	KernelImage_tmp.convertTo(KernelImage, CV_8UC1);
-}
 
 /* クラス */
 class KERNEL {
@@ -290,5 +272,52 @@ void KERNEL::resize_copy(double resize_factor_X, double resize_factor_Y, KERNEL&
 	if (sum == 0) { cout << "WARNING! KERNEL::resize_copy() : sum=0" << endl; }
 }
 
+
+/* 関数 */
+// カーネル画像の可視化
+void KernelImage_Visualization(Mat& KernelImage) {
+	Mat KernelImage_tmp = Mat(KernelImage.size(), CV_8UC1);
+	int xx, yy;
+	int Kernel_index;
+	double Kernel_tmp;
+
+#pragma omp parallel for private(xx)
+	for (yy = 0; yy < KernelImage.rows; yy++) {
+		for (xx = 0; xx < KernelImage.cols; xx++) {
+			Kernel_index = yy * KernelImage.cols + xx;
+			Kernel_tmp = (double)KernelImage.at<double>(yy, xx);
+
+			Kernel_tmp *= 2;	// 見やすくするために×2
+			if (Kernel_tmp > MAX_INTENSE) { Kernel_tmp = MAX_INTENSE; }
+
+			KernelImage_tmp.data[Kernel_index] = (uchar)Kernel_tmp;
+		}
+	}
+	KernelImage_tmp.convertTo(KernelImage, CV_8UC1);
+}
+
+// カーネル画像の正規化
+void KernelMat_Normalization(Mat& inoutKernel) {
+	int x, y;
+	double calc_sum = 0.0;	// 総和を計算
+#pragma omp parallel for private(x)
+	for (y = 0; y < inoutKernel.rows; y++) {
+		for (x = 0; x < inoutKernel.cols; x++) {
+			calc_sum = (double)inoutKernel.at<double>(y, x);
+			calc_sum += calc_sum;
+		}
+	}
+	double multi_sum = 1.0 / (double)calc_sum;		// 総和が１になるような係数
+	//cout << "   multi_sum = " << (double)multi_sum << " : calc_sum = " << (double)calc_sum << endl;	// 確認用
+#pragma omp parallel for private(x)
+	for (y = 0; y < inoutKernel.rows; y++) {
+		for (x = 0; x < inoutKernel.cols; x++) {
+			calc_sum = (double)inoutKernel.at<double>(y, x);
+			calc_sum *= multi_sum;
+			inoutKernel.at<double>(y, x) = calc_sum;
+		}
+	}
+	//normalize(inoutKernel, inoutKernel, 0, 1, NORM_MINMAX);
+}
 
 #endif

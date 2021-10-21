@@ -58,7 +58,7 @@ void multi_complex(Mat& srcImg, Mat& srcImg2, Mat& dstImg) {
 	Vec2d in, in2, out;
 
 	if (srcImg.cols != srcImg2.cols || srcImg.rows != srcImg2.rows) { cout << "ERROR! multi_complex() : Can't translate because of wrong sizes." << endl; }
-	if (srcImg.channels() == 2) {
+	else if (srcImg.channels() == 2) {
 #pragma omp parallel for private(x)
 		for (y = 0; y < srcImg.rows; y++) {
 			for (x = 0; x < srcImg.cols; x++) {
@@ -80,7 +80,7 @@ void divi_complex(Mat& srcImg, Mat& srcImg2, Mat& dstImg) {
 	Vec2d in, in2, out;
 
 	if (srcImg.cols != srcImg2.cols || srcImg.rows != srcImg2.rows) { cout << "ERROR! multi_complex() : Can't translate because of wrong sizes." << endl; }
-	if (srcImg.channels() == 2) {
+	else if (srcImg.channels() == 2) {
 #pragma omp parallel for private(x)
 		for (y = 0; y < srcImg.rows; y++) {
 			for (x = 0; x < srcImg.cols; x++) {
@@ -106,7 +106,7 @@ void mluti_divi_complex(Mat& srcImg, Mat& srcImg2, Mat& dstImg) {
 	Vec2d all_number = { all_num, 0.0 };
 
 	if (srcImg.cols != srcImg2.cols || srcImg.rows != srcImg2.rows) { cout << "ERROR! multi_complex() : Can't translate because of wrong sizes." << endl; }
-	if (srcImg.channels() == 2) {
+	else if (srcImg.channels() == 2) {
 #pragma omp parallel for private(x)
 		for (y = 0; y < srcImg.rows; y++) {
 			for (x = 0; x < srcImg.cols; x++) {
