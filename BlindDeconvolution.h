@@ -86,8 +86,8 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 
 			/* Update x */
 			cout << " Update Img... " << endl;					// 実行確認用
-			//UpdateImage(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
-			UpdateImage_check(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
+			UpdateImage(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
+			//UpdateImage_check(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
 
 			/* Update k */
 			cout << " Update Karnel... " << endl;				// 実行確認用
@@ -112,9 +112,10 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 		}
 		KernelMat_Normalization(Image_kernel_original);
 		normalize(Image_kernel_original, Image_kernel_original, 0, 100, NORM_MINMAX);
-		//QuantImg[pyr].QMat.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
+		QuantImg[pyr].QMat.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
 		BlurrImg[pyr].convertTo(Image_dst, CV_8UC3);		// 確認用
 		TrueImg[pyr].convertTo(Img_true, CV_8UC3);
+		//TrueImg[pyr].convertTo(Image_dst_deblurred2, CV_8UC3);
 	}
 	cout << endl;
 
@@ -204,6 +205,7 @@ void Blind_Deconvolution::UpdateQuantizedImage(Mat& Img_Now, QuantMatDouble& Qua
 	Img_Now.convertTo(color_Img, CV_8UC3);
 	cvtColor(color_Img, gray_Img, COLOR_BGR2GRAY);
 	Laplacian(gray_Img, contrust, CV_64F, 3);
+	//contrust.convertTo(Image_dst_deblurred2, CV_8U);		// 確認用
 	convertScaleAbs(contrust, contrust, 1, 0);
 	contrust.convertTo(contrust, CV_64FC1);
 	for (int i = 0; i < Iteration_Number; i++) {
