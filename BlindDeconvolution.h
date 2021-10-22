@@ -114,7 +114,7 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 
 		/* 出力 */
 		Img[pyr].convertTo(Img_inoutput, CV_8UC3);
-		QuantImg[pyr].QMat.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
+		//QuantImg[pyr].QMat.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
 		BlurrImg[pyr].convertTo(Image_dst, CV_8UC3);		// 確認用
 		TrueImg[pyr].convertTo(Img_true, CV_8UC3);
 		//TrueImg[pyr].convertTo(Image_dst_deblurred2, CV_8UC3);
@@ -357,8 +357,8 @@ void Blind_Deconvolution::UpdateImage(Mat& Img_Now, Mat& QuantImg_Now, KERNEL& K
 		copyMakeBorder(doubleQuantImg[c], dft_doubleQuantImg[c], doubleKernel.rows / 2, Msize - Mplus + doubleKernel.rows / 2, doubleKernel.cols / 2, Nsize - Nplus + doubleKernel.cols / 2, BORDER_REPLICATE);
 		dft(dft_doubleQuantImg[c], dft_doubleQuantImg[c]);
 	}
-	//visualbule_complex(dft_doubleBlurredImg_2[0], Image_dst_deblurred2);	// 確認
-	//visualbule_complex(dft_doubleQuantImg_2[0], Image_dst_deblurred2);	// 確認
+	//visualbule_complex(dft_doubleBlurredImg[0], Image_dst_deblurred2);	// 確認
+	//visualbule_complex(dft_doubleQuantImg[0], Image_dst_deblurred2);	// 確認
 
 	/* ぼけ除去画像を求める */
 	Mat dft_doubleNewImg[3];
@@ -404,6 +404,8 @@ void Blind_Deconvolution::UpdateImage(Mat& Img_Now, Mat& QuantImg_Now, KERNEL& K
 		//doubleNewImg[c] = dft_doubleNewImg[c](Rect(doubleKernel.cols / 2, doubleKernel.rows / 2, BlurredImg.cols, BlurredImg.rows));
 		doubleNewImg[c] = dft_doubleNewImg[c](Rect(0, 0, BlurredImg.cols, BlurredImg.rows));
 	}
+	//dft_doubleNewImg[0].copyTo(Image_dst_deblurred2);	// 確認
+	//Image_dst_deblurred2.convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
 	Mat NewImg;
 	merge(doubleNewImg, 3, NewImg);
 
