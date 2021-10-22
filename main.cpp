@@ -64,6 +64,7 @@ int main() {
 
 	/* カーネル可視化 */
 	KernelImage_Visualization(Image_kernel_original);
+	//KernelImage_Visualization_double(Image_kernel_original);
 	kernel.inverse_normalization();
 	kernel.visualization(Image_kernel);
 	//kernel.display_detail();	// 確認用
@@ -78,6 +79,8 @@ int main() {
 	cout << "推定カーネル と 真のカーネル" << endl;		// 実行確認用
 	Evaluation_MSE_PSNR_SSIM(Image_kernel, Image_kernel_original);
 
+	//Image_kernel.convertTo(Image_kernel, CV_8UC1);
+	//Image_kernel_original.convertTo(Image_kernel_original, CV_8UC1);
 
 	/* ヒストグラム作成 */
 	//DrawHist(Image_src, Image_src_hist);

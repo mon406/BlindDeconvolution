@@ -10,6 +10,7 @@ const int filetersize_rows = 20;
 
 /* 関数 */
 void KernelImage_Visualization(Mat& KernelImage);	// カーネル画像の可視化
+void KernelImage_Visualization_double(Mat& KernelImage);
 void KernelMat_Normalization(Mat& inoutKernel);		// カーネル画像の正規化
 
 
@@ -219,10 +220,9 @@ void KERNEL::inverse_normalization() {
 	}
 }
 void KERNEL::visualization(Mat& outputIMG) {
-	Mat KernelIMG = Mat::zeros(Kernel.size(), CV_8UC1);
 	if (sum != 0) {
-		Kernel.convertTo(KernelIMG, CV_8UC1);
 		KernelImage_Visualization(Kernel);
+		//KernelImage_Visualization_double(Kernel);
 	}
 	else { cout << "WARNING! KERNEL::visualization() : sum=0" << endl; }
 	Kernel.copyTo(outputIMG);
@@ -294,6 +294,26 @@ void KernelImage_Visualization(Mat& KernelImage) {
 		}
 	}
 	KernelImage_tmp.convertTo(KernelImage, CV_8UC1);
+}
+void KernelImage_Visualization_double(Mat& KernelImage) {
+	Mat KernelImage_tmp = Mat(KernelImage.size(), CV_64FC1);
+	int xx, yy;
+	int Kernel_index;
+	double Kernel_tmp;
+
+#pragma omp parallel for private(xx)
+	for (yy = 0; yy < KernelImage.rows; yy++) {
+		for (xx = 0; xx < KernelImage.cols; xx++) {
+			Kernel_index = yy * KernelImage.cols + xx;
+			Kernel_tmp = (double)KernelImage.at<double>(yy, xx);
+
+			Kernel_tmp *= 2;	// 見やすくするために×2
+			if (Kernel_tmp > MAX_INTENSE) { Kernel_tmp = MAX_INTENSE; }
+
+			KernelImage_tmp.at<double>(yy, xx) = (double)Kernel_tmp;
+		}
+	}
+	KernelImage_tmp.copyTo(KernelImage);
 }
 
 // カーネル画像の正規化

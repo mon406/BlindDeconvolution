@@ -77,7 +77,7 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 
 	/* ぼけ除去 */
 	for (pyr = PYRAMID_NUM; pyr >= 3; pyr--) {
-		cout << "Deconvolting in " << (int)pyr << endl;		// 実行確認用
+		cout << "Deconvoluting in " << (int)pyr << endl;		// 実行確認用
 
 		for (int i = 0; i < MAX_Iteration; i++) {
 			/* Update x~ */
@@ -90,8 +90,16 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 			//UpdateImage_check(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
 
 			/* Update k */
+			Mat before_Kernel, after_Kernel;
+			Kernel[pyr].Kernel_normalized.copyTo(before_Kernel);
 			cout << " Update Karnel... " << endl;				// 実行確認用
 			UpdateKarnel(Kernel[pyr], QuantImg[pyr].QMat, BlurrImg[pyr]);
+			Kernel[pyr].Kernel_normalized.copyTo(after_Kernel);
+
+			//double diff_Kernel = (double)norm(before_Kernel, after_Kernel, NORM_L2);
+			//diff_Kernel = (double)sqrt(diff_Kernel) / (double)Kernel[pyr].size;
+			//cout << "  diff_Kernel = " << diff_Kernel << endl;		// 実行確認用
+			//if (diff_Kernel < (double)1.0e-04) { break; }
 
 			if (i == 1) {
 				break;
@@ -106,16 +114,18 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 
 		/* 出力 */
 		Img[pyr].convertTo(Img_inoutput, CV_8UC3);
+		QuantImg[pyr].QMat.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
+		BlurrImg[pyr].convertTo(Image_dst, CV_8UC3);		// 確認用
+		TrueImg[pyr].convertTo(Img_true, CV_8UC3);
+		//TrueImg[pyr].convertTo(Image_dst_deblurred2, CV_8UC3);
 		Kernel_inoutput.copy(Kernel[pyr]);
 		for (int pyr_index = 0; pyr_index < pyr; pyr_index++) {
 			resize(Image_kernel_original, Image_kernel_original, Size(), ResizeFactor, ResizeFactor);		// 確認用
 		}
 		KernelMat_Normalization(Image_kernel_original);
 		normalize(Image_kernel_original, Image_kernel_original, 0, 100, NORM_MINMAX);
-		QuantImg[pyr].QMat.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
-		BlurrImg[pyr].convertTo(Image_dst, CV_8UC3);		// 確認用
-		TrueImg[pyr].convertTo(Img_true, CV_8UC3);
-		//TrueImg[pyr].convertTo(Image_dst_deblurred2, CV_8UC3);
+		cout << "推定カーネル と 真カーネル (double)" << endl;		// 確認用
+		Evaluation_MSE_PSNR_SSIM(Kernel[pyr].Kernel, Image_kernel_original);
 	}
 	cout << endl;
 

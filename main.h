@@ -109,7 +109,7 @@ void Evaluation_MSE_PSNR_SSIM(Mat& Original, Mat& Inpaint) {
 					image_cost = 0.0;
 					color_ind = i * Original.cols * 3 + j * 3;
 					for (int k = 0; k < 3; k++) {
-						image_cost += pow((int)Inpaint.data[color_ind] - (int)Original.data[color_ind], 2.0);
+						image_cost += pow((double)Inpaint.data[color_ind] - (double)Original.data[color_ind], 2.0);
 						color_ind++;
 					}
 					MSE_sum += (double)image_cost;
@@ -124,7 +124,7 @@ void Evaluation_MSE_PSNR_SSIM(Mat& Original, Mat& Inpaint) {
 				for (int j = 0; j < Original.cols; j++) {
 					image_cost = 0.0;
 					color_ind = i * Original.cols + j;
-					image_cost += pow((int)Inpaint.data[color_ind] - (int)Original.data[color_ind], 2.0);
+					image_cost += pow((double)Inpaint.data[color_ind] - (double)Original.data[color_ind], 2.0);
 					MSE_sum += (double)image_cost;
 					occ_pix_count++;
 				}
@@ -134,7 +134,7 @@ void Evaluation_MSE_PSNR_SSIM(Mat& Original, Mat& Inpaint) {
 		MSE = (double)MSE_sum / (double)compare_size;
 
 		/* PSNRŒvŽZ */
-		if (MSE == 0) { PSNR = 0; }
+		if (MSE == 0) { PSNR = -1; }
 		else { PSNR = 20 * (double)log10(MAX_INTENSE) - 10 * (double)log10(MSE); }
 
 		/* SSIMŒvŽZ */
@@ -143,7 +143,8 @@ void Evaluation_MSE_PSNR_SSIM(Mat& Original, Mat& Inpaint) {
 		/* •]‰¿Œ‹‰Ê•\Ž¦ */
 		cout << "--- •]‰¿ ------------------------------------------" << endl;
 		cout << " MSE  : " << MSE << endl;
-		cout << " PSNR : " << PSNR << endl;
+		if (PSNR >= 0) { cout << " PSNR : " << PSNR << endl; }
+		else{ cout << " PSNR : inf" << endl; }
 		cout << " SSIM : " << SSIM << endl;
 		cout << "---------------------------------------------------" << endl;
 	}
@@ -187,10 +188,11 @@ void SSIMcalc(double& ssim, Mat& image_1, Mat& image_2) {
 	divide(t3, t1, ssim_map);      // ssim_map =  t3./t1;
 	Scalar mssim = mean(ssim_map); // mssim = average of ssim map
 
-	/* SSIM•½‹Ï(RGB) */
+	/* SSIM•½‹Ï(RGB or Gray) */
 	double SSIM;
 	SSIM = (double)mssim[0] + (double)mssim[1] + (double)mssim[2];
-	ssim = (double)SSIM / 3.0;
+	if (image_1.channels() == 3) { SSIM = (double)SSIM / 3.0; }
+	ssim = (double)SSIM;
 }
 
 // ƒqƒXƒgƒOƒ‰ƒ€ŒvŽZ&•`‰æ
