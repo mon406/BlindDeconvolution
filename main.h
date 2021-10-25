@@ -144,7 +144,7 @@ void Evaluation_MSE_PSNR_SSIM(Mat& Original, Mat& Inpaint) {
 		cout << "--- •]‰¿ ------------------------------------------" << endl;
 		cout << " MSE  : " << MSE << endl;
 		if (PSNR >= 0) { cout << " PSNR : " << PSNR << endl; }
-		else { cout << " PSNR : inf" << endl; }
+		else{ cout << " PSNR : inf" << endl; }
 		cout << " SSIM : " << SSIM << endl;
 		cout << "---------------------------------------------------" << endl;
 	}

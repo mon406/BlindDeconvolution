@@ -76,8 +76,12 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 	initialization(Img_true, Img_inoutput, Kernel_inoutput);
 
 	/* ぼけ除去 */
-	for (pyr = PYRAMID_NUM; pyr >= 3; pyr--) {
+	for (pyr = 0/*PYRAMID_NUM*/; pyr >= 0/*3*/; pyr--) {
 		cout << "Deconvoluting in " << (int)pyr << endl;		// 実行確認用
+		/*checkMat(Img[pyr]);
+		checkMat(QuantImg[pyr].QMat);
+		checkMat(BlurrImg[pyr]);
+		checkMat(Kernel[pyr].Kernel);*/
 
 		for (int i = 0; i < MAX_Iteration; i++) {
 			/* Update x~ */
@@ -89,9 +93,9 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 			UpdateImage(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
 			//UpdateImage_check(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
 
-			if (i == 1) {
+			/*if (i == 1) {
 				break;
-			}
+			}*/
 
 			/* Update k */
 			Mat before_Kernel, after_Kernel;
@@ -105,7 +109,7 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 			//cout << "  diff_Kernel = " << diff_Kernel << endl;		// 実行確認用
 			//if (diff_Kernel < (double)1.0e-04) { break; }
 
-			if (i == 1) {
+			if (i == 0) {
 				break;
 			}
 		}
@@ -123,13 +127,18 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 		TrueImg[pyr].convertTo(Img_true, CV_8UC3);
 		//TrueImg[pyr].convertTo(Image_dst_deblurred2, CV_8UC3);
 		Kernel_inoutput.copy(Kernel[pyr]);
+		Mat resize_kernel_original;
 		for (int pyr_index = 0; pyr_index < pyr; pyr_index++) {
-			resize(Image_kernel_original, Image_kernel_original, Size(), ResizeFactor, ResizeFactor);		// 確認用
+			if(pyr_index == 0){ resize(Image_kernel_original, resize_kernel_original, Size(), ResizeFactor, ResizeFactor); }
+			else { resize(resize_kernel_original, resize_kernel_original, Size(), ResizeFactor, ResizeFactor); }
 		}
-		KernelMat_Normalization(Image_kernel_original);
-		normalize(Image_kernel_original, Image_kernel_original, 0, 100, NORM_MINMAX);
+		KernelMat_Normalization(resize_kernel_original);
+		normalize(resize_kernel_original, resize_kernel_original, 0, 100, NORM_MINMAX);
+		//resize_kernel_original.copyTo(Image_kernel_original);
 		cout << "推定カーネル と 真カーネル (double)" << endl;		// 確認用
-		Evaluation_MSE_PSNR_SSIM(Kernel[pyr].Kernel, Image_kernel_original);
+		Evaluation_MSE_PSNR_SSIM(Kernel[pyr].Kernel, resize_kernel_original);
+		//checkMat(Kernel[pyr].Kernel);
+		//checkMat(resize_kernel_original);
 	}
 	cout << endl;
 
@@ -165,8 +174,10 @@ void Blind_Deconvolution::initialization(Mat& Img_true, Mat& Img_input, KERNEL& 
 	quantMat.quantedQMat();
 	QuantImg.push_back(quantMat);
 	Kernel.push_back(Kernel_input);	// カーネルコピー
-	//KERNEL Kernel_tmp = KERNEL(2);	// カーネル適当な初期値
+	//KERNEL Kernel_tmp = KERNEL(3);	// カーネル適当な初期値
 	//Kernel.push_back(Kernel_tmp);
+	K_X_SIZE.push_back(Kernel_input.Kernel.cols);
+	K_Y_SIZE.push_back(Kernel_input.Kernel.rows);
 	//Kernel[0].display_detail();	// 確認用
 	cout << " [0] : " << Img[0].size() << endl;		// 実行確認用
 	cout << "     : (" << Kernel[0].rows << "," << Kernel[0].cols << ")" << endl;	// 実行確認用
@@ -305,10 +316,10 @@ void Blind_Deconvolution::UpdateImage(Mat& Img_Now, Mat& QuantImg_Now, KERNEL& K
 	Karnel_Now.Kernel_normalized.copyTo(doubleKernel);
 	// ぼけ画像
 	Mat BlurredImg;
-	BlurrImg_Now.copyTo(BlurredImg);
+	BlurrImg_Now.convertTo(BlurredImg, CV_64FC3);
 	// 量子化画像
 	Mat QuantImg;
-	QuantImg_Now.copyTo(QuantImg);
+	QuantImg_Now.convertTo(QuantImg, CV_64FC3);
 	// 3つのチャネルB, G, Rに分離 (OpenCVではデフォルトでB, G, Rの順)
 	Mat doubleBlurredImg_sub[3] = { Mat::zeros(BlurredImg.size(), CV_64F), Mat::zeros(BlurredImg.size(), CV_64F), Mat::zeros(BlurredImg.size(), CV_64F) };
 	split(BlurredImg, doubleBlurredImg_sub);
@@ -480,6 +491,7 @@ void Blind_Deconvolution::UpdateImage_check(Mat& Img_Now, Mat& QuantImg_Now, KER
 	copyMakeBorder(doubleKernel, dft_Kernel, 0, Msize - doubleKernel.rows, 0, Nsize - doubleKernel.cols, BORDER_CONSTANT, (0.0, 0.0));
 	dft(dft_Kernel, dft_Kernel, 0, dft_Kernel.rows);
 	//visualbule_complex(dft_Kernel, Image_dst_deblurred2);	// 確認
+	//checkMat_detail(doubleKernel);	// 確認
 	// ぼけ画像＆量子化画像
 	Mat dft_doubleBlurredImg[3] = { Mat::zeros(Msize, Nsize, CV_64FC2), Mat::zeros(Msize, Nsize, CV_64FC2), Mat::zeros(Msize, Nsize, CV_64FC2) };
 	Mat dft_doubleQuantImg[3] = { Mat::zeros(Msize, Nsize, CV_64FC2), Mat::zeros(Msize, Nsize, CV_64FC2), Mat::zeros(Msize, Nsize, CV_64FC2) };
@@ -668,7 +680,7 @@ void Blind_Deconvolution::UpdateImage_check(Mat& Img_Now, Mat& QuantImg_Now, KER
 }
 void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Mat& BlurrImg_Now) {
 	/* Optimizing k */
-	double PenaltyParameter = 1.0e+19/*1.0e-01*/;
+	double PenaltyParameter = 1.0e+10/*1.0e-01*/;
 	double Error = 1.0e-04;
 
 	Mat doubleKernel;			// k
@@ -687,6 +699,7 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 	for (int k_index = 0; k_index < 10; k_index++) {
 		energy = 0.0;
 		doubleKernel.copyTo(Before);
+		//checkMat_detail(doubleKernel);	// 確認
 
 		/* Calculate doubleKernel_ */
 		// 画像をCV_64FC1に変換(前処理)
@@ -712,7 +725,7 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 		for (y = 0; y < Karnel_Now.rows; y++) {
 			for (x = 0; x < Karnel_Now.cols; x++) {
 				sign_calc = (double)abs((double)doubleKernel2.at<double>(y, x) - (double)doubleA.at<double>(y, x));
-				cout << "   " << sign_calc << endl;	// 確認用
+				//cout << "   " << sign_calc << endl;	// 確認用
 				if (sign_calc >= threshold) {
 					doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold;
 				}
@@ -727,17 +740,17 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 				}
 				else { doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold; }
 				doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold;*/
-				cout << doubleKernel_sub.at<double>(y, x) << endl;	// 確認用
+				//cout << doubleKernel_sub.at<double>(y, x) << endl;	// 確認用
 			}
 		}
-//#pragma omp parallel for private(x)
-//		for (y = 0; y < doubleKernel_sub.rows; y++) {
-//			for (x = 0; x < doubleKernel_sub.cols; x++) {
-//				double kernel_num = doubleKernel_sub.at<double>(y, x);
-//				if (kernel_num < 0) { doubleKernel_sub.at<double>(y, x) = 0.0; }	// 負の値は0にする
-//				//else if (kernel_num > 1) { doubleKernel_sub.at<double>(y, x) = 1.0; }
-//			}
-//		}
+		//#pragma omp parallel for private(x)
+		//		for (y = 0; y < doubleKernel_sub.rows; y++) {
+		//			for (x = 0; x < doubleKernel_sub.cols; x++) {
+		//				double kernel_num = doubleKernel_sub.at<double>(y, x);
+		//				if (kernel_num < 0) { doubleKernel_sub.at<double>(y, x) = 0.0; }	// 負の値は0にする
+		//				//else if (kernel_num > 1) { doubleKernel_sub.at<double>(y, x) = 1.0; }
+		//			}
+		//		}
 		doubleKernel_sub.copyTo(doubleKernel);
 		KernelMat_Normalization(doubleKernel);
 		//checkMat_detail(doubleKernel);	// 確認
@@ -782,7 +795,7 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 void Blind_Deconvolution::Upsampling(int before_pyrLEVEL) {
 	int after_pyrLEVEL = before_pyrLEVEL - 1;
 	Mat imgNEXT;
-	Kernel[after_pyrLEVEL] = KERNEL();
+	//Kernel[after_pyrLEVEL] = KERNEL();
 	double ReResizeFactor = 1.0 / ResizeFactor;
 	//resize(Img[before_pyrLEVEL], imgNEXT, Size(), ReResizeFactor, ReResizeFactor);
 	resize(Img[before_pyrLEVEL], imgNEXT, Size(), (double)X_SIZE[after_pyrLEVEL] / (double)Img[before_pyrLEVEL].cols, (double)Y_SIZE[after_pyrLEVEL] / (double)Img[before_pyrLEVEL].rows);
@@ -1011,8 +1024,8 @@ void ConjugateGradientMethod(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& Lag
 	Mat_tmp_ave /= (double)3.0;
 	Mat_tmp_ave.copyTo(Residual);
 	Mat_tmp_ave.copyTo(P_base);
-	//checkMat(doubleNewImg2[0]);	// 確認
-	//checkMat(P_base);	// 確認
+	//checkMat_detail(doubleNewImg2[0]);	// 確認
+	//checkMat_detail(P_base);	// 確認
 
 	Mat Alpha[3] = { Mat::zeros(NewKernel.size(), CV_64F), Mat::zeros(NewKernel.size(), CV_64F), Mat::zeros(NewKernel.size(), CV_64F) };
 	Mat Beta[3] = { Mat::zeros(NewKernel.size(), CV_64F), Mat::zeros(NewKernel.size(), CV_64F), Mat::zeros(NewKernel.size(), CV_64F) };
@@ -1031,6 +1044,7 @@ void ConjugateGradientMethod(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& Lag
 			ALPHA += (double)(Numerator / Denominator);
 		}
 		ALPHA /= 3.0;
+		//cout << "  ALPHA = " << (double)ALPHA << endl;	// 確認用
 
 		// Calculate Kernel
 		NextKernel = LastKernel + ALPHA * P_base;
@@ -1042,6 +1056,9 @@ void ConjugateGradientMethod(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& Lag
 		//				else if (kernel_num > 1) { NextKernel.at<double>(y, x) = 1.0; }
 		//			}
 		//		}
+		KernelMat_Normalization(NextKernel);
+		//checkMat_detail(LastKernel);	// 確認
+		//checkMat_detail(NextKernel);	// 確認
 
 		Mat Residual_before;
 		Mat Residual_tmp = Mat::zeros(NewKernel.size(), CV_64F);
@@ -1070,6 +1087,7 @@ void ConjugateGradientMethod(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& Lag
 		Denominator2 = multi_vector(Residual, Residual);
 		BETA += (double)(Numerator2 / Denominator2);
 		BETA /= 3.0;
+		//cout << "  BETA = " << (double)BETA << endl;	// 確認用
 
 		// Calculate P_base
 		P_base = Residual + BETA * P_base;
@@ -1087,7 +1105,7 @@ void ConjugateGradientMethod(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& Lag
 			//else if (kernel_num > 1) { NextKernel.at<double>(y, x) = 1.0; }
 		}
 	}
-	KernelMat_Normalization(NextKernel);
+	//KernelMat_Normalization(NextKernel);
 
 	NextKernel.copyTo(NewKernel);
 }
