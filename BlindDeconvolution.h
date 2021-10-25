@@ -167,15 +167,17 @@ void Blind_Deconvolution::initialization(Mat& Img_true, Mat& Img_input, KERNEL& 
 	K_X_SIZE.clear();
 	K_Y_SIZE.clear();
 
-	Img.push_back(Img_input);
+	Mat Img_input_tmp;
+	Img_input.copyTo(Img_input_tmp);
+	Img.push_back(Img_input_tmp);
 	BlurrImg.push_back(Img_input);
 	TrueImg.push_back(Img_true);
 	QuantMatDouble quantMat = QuantMatDouble(10, Img_input, 0);
 	quantMat.quantedQMat();
 	QuantImg.push_back(quantMat);
-	Kernel.push_back(Kernel_input);	// カーネルコピー
-	//KERNEL Kernel_tmp = KERNEL(3);	// カーネル適当な初期値
-	//Kernel.push_back(Kernel_tmp);
+	//Kernel.push_back(Kernel_input);	// カーネルコピー
+	KERNEL Kernel_tmp = KERNEL(3);	// カーネル適当な初期値
+	Kernel.push_back(Kernel_tmp);
 	K_X_SIZE.push_back(Kernel_input.Kernel.cols);
 	K_Y_SIZE.push_back(Kernel_input.Kernel.rows);
 	//Kernel[0].display_detail();	// 確認用
@@ -185,7 +187,7 @@ void Blind_Deconvolution::initialization(Mat& Img_true, Mat& Img_input, KERNEL& 
 	Mat Img_tmp;
 	QuantMatDouble QuantImg_tmp;
 	KERNEL Karnel_tmp;
-	Mat TrueImg_tmp;
+	Mat TrueImg_tmp, BlurrImg_tmp;
 	for (pyr = 0; pyr < PYRAMID_NUM; pyr++) {
 		resize(Img[pyr], Img_tmp, Size(), ResizeFactor, ResizeFactor);
 		resize(TrueImg[pyr], TrueImg_tmp, Size(), ResizeFactor, ResizeFactor);
@@ -194,7 +196,8 @@ void Blind_Deconvolution::initialization(Mat& Img_true, Mat& Img_input, KERNEL& 
 		Karnel_tmp = KERNEL();
 		Karnel_tmp.resize_copy(ResizeFactor, Kernel[pyr]);
 		Img.push_back(Img_tmp);
-		BlurrImg.push_back(Img_tmp);
+		Img_tmp.copyTo(BlurrImg_tmp);
+		BlurrImg.push_back(BlurrImg_tmp);
 		TrueImg.push_back(TrueImg_tmp);
 		QuantImg.push_back(QuantImg_tmp);
 		Kernel.push_back(Karnel_tmp);
@@ -680,7 +683,7 @@ void Blind_Deconvolution::UpdateImage_check(Mat& Img_Now, Mat& QuantImg_Now, KER
 }
 void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Mat& BlurrImg_Now) {
 	/* Optimizing k */
-	double PenaltyParameter = 1.0e+10/*1.0e-01*/;
+	double PenaltyParameter = 1.0e+20/*1.0e+01*/;
 	double Error = 1.0e-04;
 
 	Mat doubleKernel;			// k
