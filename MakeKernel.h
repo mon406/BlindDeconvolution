@@ -338,6 +338,7 @@ void KernelMat_Normalization(Mat& inoutKernel) {
 		}
 	}
 	//normalize(inoutKernel, inoutKernel, 0, 1, NORM_MINMAX);
+	normalize(inoutKernel, inoutKernel, 0, 0.1, NORM_MINMAX);
 }
 
 #endif

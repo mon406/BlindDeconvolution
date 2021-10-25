@@ -89,6 +89,10 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 			UpdateImage(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
 			//UpdateImage_check(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
 
+			if (i == 1) {
+				break;
+			}
+
 			/* Update k */
 			Mat before_Kernel, after_Kernel;
 			Kernel[pyr].Kernel_normalized.copyTo(before_Kernel);
@@ -348,6 +352,7 @@ void Blind_Deconvolution::UpdateImage(Mat& Img_Now, Mat& QuantImg_Now, KERNEL& K
 	copyMakeBorder(doubleKernel, dft_Kernel, 0, Msize - doubleKernel.rows, 0, Nsize - doubleKernel.cols, BORDER_CONSTANT, (0.0, 0.0));
 	dft(dft_Kernel, dft_Kernel, 0, dft_Kernel.rows);
 	//visualbule_complex(dft_Kernel, Image_dst_deblurred2);	// 確認
+	//checkMat_detail(doubleKernel);	// 確認
 	// ぼけ画像＆量子化画像
 	Mat dft_doubleBlurredImg[3] = { Mat::zeros(Msize, Nsize, CV_64FC2), Mat::zeros(Msize, Nsize, CV_64FC2), Mat::zeros(Msize, Nsize, CV_64FC2) };
 	Mat dft_doubleQuantImg[3] = { Mat::zeros(Msize, Nsize, CV_64FC2), Mat::zeros(Msize, Nsize, CV_64FC2), Mat::zeros(Msize, Nsize, CV_64FC2) };
@@ -663,7 +668,7 @@ void Blind_Deconvolution::UpdateImage_check(Mat& Img_Now, Mat& QuantImg_Now, KER
 }
 void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Mat& BlurrImg_Now) {
 	/* Optimizing k */
-	double PenaltyParameter = 1.0e+20/*1.0e-01*/;
+	double PenaltyParameter = 1.0e+19/*1.0e-01*/;
 	double Error = 1.0e-04;
 
 	Mat doubleKernel;			// k
@@ -672,7 +677,7 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 	Karnel_Now.Kernel_normalized.convertTo(doubleKernel2, CV_64F);
 	//Mat doubleA = Mat::ones(Karnel_Now.Kernel_normalized.size(), CV_64F);	// correspond to a transformed vector of Lagrange multiplier
 	Mat doubleA = Mat::zeros(Karnel_Now.Kernel_normalized.size(), CV_64F);
-	
+
 	double energy = 0.0;
 	Mat Before, Before_const, After;
 	doubleKernel.copyTo(Before_const);
@@ -691,6 +696,8 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 		QuantImg_Now.convertTo(QuantImg, CV_64FC3);
 		//PenaltyParameter_Vec2 = { PenaltyParameter / 2.0 , 0.0 };
 		ConjugateGradientMethod(QuantImg, BlurredImg, doubleKernel, doubleA, PenaltyParameter_Vec2, doubleKernel2);
+		KernelMat_Normalization(doubleKernel2);
+		//checkMat_detail(doubleKernel2);	// 確認
 		//doubleKernel2.copyTo(Image_dst_deblurred2);	// 確認
 		//normalize(Image_dst_deblurred2, Image_dst_deblurred2, 0, 200, NORM_MINMAX);
 		//Image_dst_deblurred2.convertTo(Image_dst_deblurred2, CV_8UC1);
@@ -705,20 +712,22 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 		for (y = 0; y < Karnel_Now.rows; y++) {
 			for (x = 0; x < Karnel_Now.cols; x++) {
 				sign_calc = (double)abs((double)doubleKernel2.at<double>(y, x) - (double)doubleA.at<double>(y, x));
-				//cout << "   " << sign_calc << endl;	// 確認用
-				/*if (sign_calc > 0) {
-					doubleKernel_sub.at<double>(y, x) = (double)((double)abs(sign_calc) - (double)threshold) * (double)sign_calc;
-				}
-				else { doubleKernel_sub.at<double>(y, x) = 0.0; }*/
+				cout << "   " << sign_calc << endl;	// 確認用
 				if (sign_calc >= threshold) {
+					doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold;
+				}
+				else {
+					doubleKernel_sub.at<double>(y, x) = 0.0;
+				}
+				/*if (sign_calc >= threshold) {
 					doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold;
 				}
 				else if (sign_calc > -threshold) {
 					doubleKernel_sub.at<double>(y, x) = 0.0;
 				}
 				else { doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold; }
-				doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold;
-				//cout << doubleKernel_sub.at<double>(y, x) << endl;	// 確認用
+				doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold;*/
+				cout << doubleKernel_sub.at<double>(y, x) << endl;	// 確認用
 			}
 		}
 //#pragma omp parallel for private(x)
@@ -726,11 +735,12 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 //			for (x = 0; x < doubleKernel_sub.cols; x++) {
 //				double kernel_num = doubleKernel_sub.at<double>(y, x);
 //				if (kernel_num < 0) { doubleKernel_sub.at<double>(y, x) = 0.0; }	// 負の値は0にする
-//				else if (kernel_num > 1) { doubleKernel_sub.at<double>(y, x) = 1.0; }
+//				//else if (kernel_num > 1) { doubleKernel_sub.at<double>(y, x) = 1.0; }
 //			}
 //		}
-//		KernelMat_Normalization(doubleKernel_sub);
 		doubleKernel_sub.copyTo(doubleKernel);
+		KernelMat_Normalization(doubleKernel);
+		//checkMat_detail(doubleKernel);	// 確認
 
 
 		/* Calculate doubleA */

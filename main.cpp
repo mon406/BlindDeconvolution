@@ -94,8 +94,8 @@ int main() {
 
 // 画像の入力
 void Input_Image() {
-	//string file_src = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\src.jpg";		// 入力画像のファイル名
-	string file_src = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\src.jpg";	// 入力画像のファイル名
+	string file_src = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\src.jpg";		// 入力画像のファイル名
+	//string file_src = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\src.jpg";	// 入力画像のファイル名
 	Image_src = imread(file_src, 1);		// 入力画像（カラー）の読み込み
 	Image_src_gray = imread(file_src, 0);	// 入力画像（グレースケール）の読み込み
 
@@ -112,18 +112,18 @@ void Input_Image() {
 }
 // 画像の出力
 void Output_Image() {
-	//string file_dst = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\dst.jpg";		// 出力画像のファイル名
-	////string file_dst2 = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\dst_hist.jpg";
-	////string file_dst3 = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\src_hist.jpg";
-	//string file_dst4 = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\dst_kernel.jpg";
-	//string file_dst5 = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\dst_deblurred.jpg";
-	//string file_dst6 = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\dst_deblurred2.jpg";
-	string file_dst = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\dst.jpg";	// 出力画像のファイル名
-	//string file_dst2 = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\dst_hist.jpg";
-	//string file_dst3 = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\src_hist.jpg";
-	string file_dst4 = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\dst_kernel.jpg";
-	string file_dst5 = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\dst_deblurred.jpg";
-	string file_dst6 = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\dst_deblurred2.jpg";
+	string file_dst = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\dst.jpg";		// 出力画像のファイル名
+	//string file_dst2 = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\dst_hist.jpg";
+	//string file_dst3 = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\src_hist.jpg";
+	string file_dst4 = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\dst_kernel.jpg";
+	string file_dst5 = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\dst_deblurred.jpg";
+	string file_dst6 = "C:\\Users\\mon25\\Desktop\\BlindDeconvolution\\dst_deblurred2.jpg";
+	//string file_dst = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\dst.jpg";	// 出力画像のファイル名
+	////string file_dst2 = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\dst_hist.jpg";
+	////string file_dst3 = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\src_hist.jpg";
+	//string file_dst4 = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\dst_kernel.jpg";
+	//string file_dst5 = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\dst_deblurred.jpg";
+	//string file_dst6 = "C:\\Users\\Yuki Momma\\Desktop\\BlindDeconvolution\\dst_deblurred2.jpg";
 
 	/* ウィンドウ生成 */
 	namedWindow(win_src, WINDOW_AUTOSIZE);
