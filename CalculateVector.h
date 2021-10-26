@@ -8,7 +8,7 @@ double multi_vector(Mat& srcImg, Mat& srcImg2);							// 1ŸŒ³ƒxƒNƒgƒ‹‚ÌæZ(“à
 void multi_matrix_vector(Mat& srcImg, Mat& dft_srcImg2, Mat& dstImg);	// 2ŸŒ³ƒxƒNƒgƒ‹‚Æ1ŸŒ³ƒxƒNƒgƒ‹‚ÌæZ
 
 void make_matrix_A(Mat& srcImg, double& img_size, double& lambda, double& myu, Mat& dstImg);
-void make_matrix_A2(Mat& srcImg, double& kernel_size, double& parameter, Mat& dstImg);
+void make_matrix_A2(Mat& srcImg, int& kernel_size, double& parameter, Mat& dstImg);
 
 
 /* ŠÖ” */
@@ -79,19 +79,47 @@ void make_matrix_A(Mat& srcImg, double& img_size, double& lambda, double& myu, M
 
 
 }
-void make_matrix_A2(Mat& srcImg, double& kernel_size, double& parameter, Mat& dstImg) {
+void make_matrix_A2(Mat& srcImg, int& kernel_size, double& parameter, Mat& dstImg) {
 	int x, y, c;
 	int total = srcImg.cols * srcImg.rows;
-	Mat ConvMatrix = Mat::zeros(Size(kernel_size, total), CV_64FC1);
+	Mat ConvMatrix = Mat::zeros(Size(kernel_size * 2, total), CV_64FC1);
+	Mat TransConvMatrix = Mat::zeros(Size(total, kernel_size * 2), CV_64FC1);
 
+	double plus_parameter = (double)parameter / 2.0;
+	cout << "  make_matrix_A2() : plus_parameter = " << (double)plus_parameter << endl;	// Šm”F—p
+
+	int input_x = 0, input_y = 0;
+	double input_num;
+	int now_x, now_y;
+	int half_kernel_size = (int)(kernel_size / 2) - 1;
 #pragma omp parallel for private(x)
 	for (y = 0; y < srcImg.rows; y++) {
 		for (x = 0; x < srcImg.cols; x++) {
-			ConvMatrix.at<double>(y, x) = 0.0;
+			input_x = 0;
+			for (int yy = 0; yy < kernel_size; yy++) {
+				for (int xx = 0; xx < kernel_size; xx++) {
+					now_x = x + xx - half_kernel_size;
+					now_y = y + yy - half_kernel_size;
+					if(now_x < 0 || now_x >= srcImg.cols || now_y < 0 || now_y >= srcImg.rows){ input_num = 0.0; }
+					else { input_num = srcImg.at<double>(now_y, now_x); }
+					ConvMatrix.at<double>(input_y, input_x) = input_num;
+					TransConvMatrix.at<double>(input_x, input_y) = input_num;
+					input_x++;
+				}
+			}
+			input_y++;
 		}
 	}
+	//checkMat_detail(ConvMatrix);
 
+	double Trans = 0.0;
+#pragma omp parallel
+	for (y = 0; y < ConvMatrix.rows * ConvMatrix.cols; y++) {
+		Trans += (double)((double)ConvMatrix.data[y] * (double)TransConvMatrix.data[y] + plus_parameter);
+	}
+	cout << "  make_matrix_A2() : Trans = " << (double)Trans << endl;	// Šm”F—p
 
+	ConvMatrix.copyTo(dstImg);
 }
 
 

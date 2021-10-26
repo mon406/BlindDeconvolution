@@ -62,6 +62,8 @@ void checkMat(Mat& checkImg) {
 	cout << " type = " << (
 		checkImg.type() == CV_8UC1 ? "CV_8UC1" :
 		checkImg.type() == CV_8UC3 ? "CV_8UC3" :
+		checkImg.type() == CV_32FC1 ? "CV_32FC1" :
+		checkImg.type() == CV_32FC3 ? "CV_32FC3" :
 		checkImg.type() == CV_64FC1 ? "CV_64FC1" :
 		checkImg.type() == CV_64FC2 ? "CV_64FC2" :
 		checkImg.type() == CV_64FC3 ? "CV_64FC3" :
@@ -99,10 +101,7 @@ void Evaluation_MSE_PSNR_SSIM(Mat& Original, Mat& Inpaint) {
 	int compare_size = 1, color_ind;
 	int occ_pix_count = 0;
 
-	if (Original.size() != Inpaint.size()) {
-		cout << "ERROR! MSE_PSNR_SSIM() : Can't calculate because of wrong size." << endl;
-		cout << "       => " << Original.size() << " & " << Inpaint.size() << endl;
-	}
+	if (Original.size() != Inpaint.size()) { cout << "ERROR! MSE_PSNR_SSIM() : Can't calculate because of wrong size." << endl; }
 	else if (Original.channels() != Inpaint.channels()) { cout << "ERROR! MSE_PSNR_SSIM() : Can't calculate because of wrong channels." << endl; }
 	else {
 		if (Original.channels() == 3) {
@@ -147,7 +146,7 @@ void Evaluation_MSE_PSNR_SSIM(Mat& Original, Mat& Inpaint) {
 		cout << "--- •]‰¿ ------------------------------------------" << endl;
 		cout << " MSE  : " << MSE << endl;
 		if (PSNR >= 0) { cout << " PSNR : " << PSNR << endl; }
-		else { cout << " PSNR : inf" << endl; }
+		else{ cout << " PSNR : inf" << endl; }
 		cout << " SSIM : " << SSIM << endl;
 		cout << "---------------------------------------------------" << endl;
 	}

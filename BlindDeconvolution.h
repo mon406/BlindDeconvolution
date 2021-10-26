@@ -48,6 +48,7 @@ public:
 	void deblurring(Mat&, Mat&, KERNEL&);
 	void initialization(Mat&, Mat&, KERNEL&);
 	void UpdateQuantizedImage(Mat&, QuantMatDouble&);
+	void UpdateQuantizedImage_kmeans(Mat&, QuantMatDouble&);
 	void UpdateImage(Mat&, Mat&, KERNEL&, Mat&);
 	void UpdateImage_check(Mat&, Mat&, KERNEL&, Mat&);
 	void UpdateKarnel(KERNEL&, Mat&, Mat&);
@@ -87,6 +88,7 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 			/* Update x~ */
 			cout << " Update QuantImg... " << endl;				// 実行確認用
 			//UpdateQuantizedImage(Img[pyr], QuantImg[pyr]);
+			//UpdateQuantizedImage_kmeans(Img[pyr], QuantImg[pyr]);
 
 			/* Update x */
 			cout << " Update Img... " << endl;					// 実行確認用
@@ -118,7 +120,7 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 		BlurrImg[pyr].convertTo(Image_dst, CV_8UC3);		// 確認用
 		TrueImg[pyr].convertTo(Img_true, CV_8UC3);
 		Img[pyr].convertTo(Img_inoutput, CV_8UC3);
-		QuantImg[pyr].QMat.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
+		//QuantImg[pyr].QMat.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
 		//TrueImg[pyr].convertTo(Image_dst_deblurred2, CV_8UC3);
 		Kernel_inoutput.copy(Kernel[pyr]);
 		//Mat resize_kernel_original;	// 確認用
@@ -300,6 +302,100 @@ void Blind_Deconvolution::UpdateQuantizedImage(Mat& Img_Now, QuantMatDouble& Qua
 	QuantImage_tmp.quantedQMat();
 	QuantImage_tmp.QMat.copyTo(NewQuantImg);*/
 
+	NewQuantImg.copyTo(QuantImg_Now.QMat);
+}
+void Blind_Deconvolution::UpdateQuantizedImage_kmeans(Mat& Img_Now, QuantMatDouble& QuantImg_Now) {
+	int Iteration_Number = 1;
+	double Error = 1.0e-04;
+
+	//QuantImg_Now.quantedQMat();
+	/* Optimizing using k-means */
+	Mat NewQuantImg;
+	Img_Now.convertTo(NewQuantImg, CV_32FC3/*, 1.0 / 255.0*/);
+
+	/* k-means クラスタリング */
+	Mat feature;
+	NewQuantImg.copyTo(feature);
+	//画像の画素を1列（3チャネル）に並べる
+	feature = feature.reshape(3, feature.rows * feature.cols);
+	//cout << "  " << NewQuantImg.cols * NewQuantImg.rows << endl;	// 確認用
+	//checkMat(feature);	// 確認用
+
+	Mat_<int> labels(feature.size(), CV_32SC1);
+	Mat centers;
+
+	//kmeans法による画像の分類（領域分割）
+	const int MAX_CLUSTERS = 15;
+	kmeans(feature, MAX_CLUSTERS, labels, TermCriteria(TermCriteria::COUNT, 100, 1.0), 1, KMEANS_RANDOM_CENTERS, centers);
+	centers.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
+
+	// ラベリング結果の描画色を決定
+	vector<Vec3b> colors(MAX_CLUSTERS+1);
+	colors[0] = Vec3d(0.0, 0.0, 0.0);
+	//cout << "  " << colors[0];	// 確認用
+	for (int label = 1; label <= MAX_CLUSTERS; ++label)
+	{
+		Vec3d ave_colors = Vec3b(0.0, 0.0, 0.0);
+		int ave_counter = 0;
+		//クラスタの平均値を計算
+		for (y = 0; y < NewQuantImg.rows; y++) {
+			for (x = 0; x < NewQuantImg.cols; x++) {
+				int pix = y * NewQuantImg.cols + x;
+				//int pix = (y * NewQuantImg.cols + x) * 3;
+				//cout << "  " << (int)labels.data[pix];	// 確認用
+				if ((int)labels.data[pix] == label) {
+					ave_colors += feature.at<Vec3d>(y, x);
+					//ave_colors += NewQuantImg.at<Vec3d>(y, x);
+					ave_counter++;
+					/*if (pix % 3 == 0) { ave_colors[0] += (double)NewQuantImg.data[pix * 3 + 0]; }
+					else if (pix % 3 == 1) { ave_colors[1] += (double)NewQuantImg.data[pix * 3 + 1]; }
+					else {
+						ave_colors[2] += (double)NewQuantImg.data[pix * 3 + 2];
+						ave_counter++;
+					}*/
+					//cout << "  ave_colors = " << (Vec3d)ave_colors << " , color' = " << feature.at<Vec3d>(y, x) << endl;	// 確認用
+					//cout << "  ave_colors = " << (Vec3d)ave_colors << " , color = " << NewQuantImg.at<Vec3d>(y, x) << endl;	// 確認用
+					//cout << "  ave_colors = " << (Vec3d)ave_colors << " , color = [" << (double)NewQuantImg.data[pix * 3 + 0] << ", " << (double)NewQuantImg.data[pix * 3 + 1] << ", " << (double)NewQuantImg.data[pix * 3 + 2] << "]" << endl;	// 確認用
+				}
+			}
+		}
+		//cout << "  ave_colors_sum = " << (Vec3d)ave_colors << endl;	// 確認用
+		//cout << "  ave_counter = " << ave_counter << endl;	// 確認用
+		if (ave_counter != 0) {
+			ave_colors[0] /= (double)ave_counter;
+			ave_colors[1] /= (double)ave_counter;
+			ave_colors[2] /= (double)ave_counter;
+		}
+		//cout << "  ave_colors = " << (Vec3d)ave_colors << endl;	// 確認用
+
+		//クラスタ毎に色を描画
+		//colors[label] = ave_colors;
+		//colors[label] = Vec3b(ave_colors[0], ave_colors[1], ave_colors[2]);
+		colors[label][0] = ave_colors[0];
+		colors[label][1] = ave_colors[1];
+		colors[label][2] = ave_colors[2];
+		//cout << " , " << colors[label];	// 確認用
+		cout << "  ave_colors = " << (Vec3d)ave_colors << " => " << (Vec3d)colors[label] << endl;	// 確認用
+
+		////ラベル番号に対して色をランダムに割り当てる
+		//colors[label] = Vec3b((rand() & 255), (rand() & 255), (rand() & 255));
+	}
+	//cout << endl;	// 確認用
+
+	//ラベリング結果画像の作成
+	Mat dst(NewQuantImg.size(), CV_8UC3);
+	//結果画像の各画素の色を決定していく
+	MatIterator_<Vec3b> itd = dst.begin<Vec3b>(), itd_end = dst.end<Vec3b>();
+	for (int i = 0; itd != itd_end; ++itd, ++i) {
+		int label = labels(i); //ラベリング画像の各画素のラベル番号を抽出
+		(*itd) = colors[label]; //ラベリング画像の各画素の色を割り当て
+	}
+
+	/*center = NewQuantImg.uint8(center)
+	res = center[label.flatten()]
+	res2 = res.reshape((img.shape))*/
+
+	dst.convertTo(NewQuantImg, CV_64FC3/*, 255.0*/);
 	NewQuantImg.copyTo(QuantImg_Now.QMat);
 }
 void Blind_Deconvolution::UpdateImage(Mat& Img_Now, Mat& QuantImg_Now, KERNEL& Karnel_Now, Mat& BlurrImg_Now) {
@@ -733,20 +829,20 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 			for (x = 0; x < Karnel_Now.cols; x++) {
 				sign_calc = (double)abs((double)doubleKernel2.at<double>(y, x) - (double)doubleA.at<double>(y, x));
 				//cout << "   " << sign_calc << endl;	// 確認用
-				if (sign_calc >= threshold) {
+				/*if (sign_calc >= threshold) {
 					doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold;
 				}
 				else {
 					doubleKernel_sub.at<double>(y, x) = 0.0;
-				}
-				/*if (sign_calc >= threshold) {
+				}*/
+				if (sign_calc >= threshold) {
 					doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold;
 				}
 				else if (sign_calc > -threshold) {
 					doubleKernel_sub.at<double>(y, x) = 0.0;
 				}
 				else { doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold; }
-				doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold;*/
+				doubleKernel_sub.at<double>(y, x) = (double)sign_calc - (double)threshold;
 				//cout << doubleKernel_sub.at<double>(y, x) << endl;	// 確認用
 			}
 		}
@@ -976,6 +1072,7 @@ void ConjugateGradientMethod(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& Lag
 				after = before + PenaltyParameter;
 				//cout << "  before = " << before << " , after = " << after << endl;	// 確認用
 				dft_doubleNewImg[c].at<Vec2d>(y, x) = after;
+				//cout << "   " << dft_doubleNewImg[c].at<Vec2d>(y, x) << " <- " << after << endl;	// 確認用
 
 				before2 = dft_doubleK2.at<Vec2d>(y, x);
 				before3 = dft_A.at<Vec2d>(y, x);
@@ -996,9 +1093,9 @@ void ConjugateGradientMethod(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& Lag
 	//inverseDFT
 	Mat doubleNewImg[3], doubleNewImg1[3], doubleNewImg2[3];
 	for (c = 0; c < 3; c++) {
-		//dft(dft_doubleNewImg[c], dft_doubleNewImg[c], cv::DFT_INVERSE + cv::DFT_SCALE | cv::DFT_REAL_OUTPUT);
-		//copyMakeBorder(dft_doubleNewImg[c], dft_doubleNewImg[c], NewKernel.rows / 2, NewKernel.rows / 2, NewKernel.cols / 2, NewKernel.cols / 2, BORDER_WRAP);
-		//doubleNewImg[c] = dft_doubleNewImg[c](Rect(0, 0, NewKernel.cols, NewKernel.rows));
+		/*dft(dft_doubleNewImg[c], dft_doubleNewImg[c], cv::DFT_INVERSE + cv::DFT_SCALE | cv::DFT_REAL_OUTPUT);
+		copyMakeBorder(dft_doubleNewImg[c], dft_doubleNewImg[c], NewKernel.rows / 2, NewKernel.rows / 2, NewKernel.cols / 2, NewKernel.cols / 2, BORDER_WRAP);
+		doubleNewImg[c] = dft_doubleNewImg[c](Rect(0, 0, NewKernel.cols, NewKernel.rows));*/
 		dft(dft_doubleNewImg1[c], dft_doubleNewImg1[c], cv::DFT_INVERSE + cv::DFT_SCALE | cv::DFT_REAL_OUTPUT);
 		//copyMakeBorder(dft_doubleNewImg1[c], dft_doubleNewImg1[c], NewKernel.rows / 2, NewKernel.rows / 2, NewKernel.cols / 2, NewKernel.cols / 2, BORDER_WRAP);
 		doubleNewImg1[c] = dft_doubleNewImg1[c](Rect(0, 0, NewKernel.cols, NewKernel.rows));
@@ -1006,11 +1103,21 @@ void ConjugateGradientMethod(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& Lag
 		//copyMakeBorder(dft_doubleNewImg2[c], dft_doubleNewImg2[c], NewKernel.rows / 2, NewKernel.rows / 2, NewKernel.cols / 2, NewKernel.cols / 2, BORDER_WRAP);
 		doubleNewImg2[c] = dft_doubleNewImg2[c](Rect(0, 0, NewKernel.cols, NewKernel.rows));
 	}
-	//doubleNewImg[0].copyTo(Image_dst_deblurred2);	// 確認
+	//checkMat_detail(dft_doubleNewImg[0]);	// 確認
+	//KernelMat_Normalization(dft_doubleNewImg[0]);
+	//normalize(dft_doubleNewImg[0], dft_doubleNewImg[0], 0, 255, NORM_MINMAX);
+	//dft_doubleNewImg[0].convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
 	//checkMat_detail(Image_dst_deblurred2);	// 確認
 	//doubleNewImg[0].convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
 	//doubleNewImg1[0].convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
 	//doubleNewImg2[0].convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
+
+
+	/* 実行列 A について */
+	//Mat DST_Img;
+	//make_matrix_A2(doubleBlurredImg_sub[0], NewKernel.cols, PenaltyParameter[0], DST_Img);
+	//DST_Img.convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
+	//checkMat(Image_dst_deblurred2);	// 確認
 
 
 	/*Mat NextKernel;
@@ -1035,6 +1142,7 @@ void ConjugateGradientMethod(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& Lag
 	Mat_tmp_ave.copyTo(Residual);
 	Mat_tmp_ave.copyTo(P_base);
 	//checkMat_detail(doubleNewImg2[0]);	// 確認
+	//checkMat_detail(doubleNewImg1[0]);	// 確認
 	//checkMat_detail(P_base);	// 確認
 
 	//Mat Alpha[3] = { Mat::zeros(NewKernel.size(), CV_64F), Mat::zeros(NewKernel.size(), CV_64F), Mat::zeros(NewKernel.size(), CV_64F) };
