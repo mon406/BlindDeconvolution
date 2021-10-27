@@ -20,6 +20,7 @@ double Tau = 1.0e-03;
 /* 関数 */
 double CostCalculateLeast(int X, int Y, Mat& Quant_Img, Mat& Now_Img, Mat& contrast_Img);
 void ConjugateGradientMethod(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& LagrngianMlutipliers, Vec2d& PenaltyParameter, Mat& NewKernel);
+void ConjugateGradientMethod_Gray(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& LagrngianMlutipliers, Vec2d& PenaltyParameter, Mat& NewKernel);
 
 
 /* Blind_Deconvolution クラス */
@@ -783,7 +784,7 @@ void Blind_Deconvolution::UpdateImage_check(Mat& Img_Now, Mat& QuantImg_Now, KER
 }
 void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Mat& BlurrImg_Now) {
 	/* Optimizing k */
-	double PenaltyParameter = /*1.0e+20*/1.0e+01;
+	double PenaltyParameter = 1.0e+15/*1.0e+01*/;
 	double Error = 1.0e-04;
 
 	Mat doubleKernel;			// k
@@ -805,13 +806,14 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 		//checkMat_detail(doubleKernel);	// 確認
 
 		/* Calculate doubleKernel_ */
-		// 画像をCV_64FC1に変換(前処理)
+		// 画像をCV_64FC3に変換(前処理)
 		Mat BlurredImg;
 		BlurrImg_Now.convertTo(BlurredImg, CV_64FC3);
 		Mat QuantImg;
 		QuantImg_Now.convertTo(QuantImg, CV_64FC3);
 		//PenaltyParameter_Vec2 = { PenaltyParameter / 2.0 , 0.0 };
 		ConjugateGradientMethod(QuantImg, BlurredImg, doubleKernel, doubleA, PenaltyParameter_Vec2, doubleKernel2);
+		//ConjugateGradientMethod_Gray(QuantImg, BlurredImg, doubleKernel, doubleA, PenaltyParameter_Vec2, doubleKernel2);
 		KernelMat_Normalization(doubleKernel2);
 		//checkMat_detail(doubleKernel2);	// 確認
 		//doubleKernel2.copyTo(Image_dst_deblurred2);	// 確認
@@ -823,7 +825,7 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 		doubleKernel.copyTo(doubleKernel_sub);
 		double sign_calc = 0.0;
 		double threshold = (double)(Tau / PenaltyParameter_Vec2[0]);
-		cout << "  threshold = " << threshold << endl;
+		cout << "  threshold = " << threshold  << " , PenaltyParameter = " << PenaltyParameter_Vec2[0] << endl;
 #pragma omp parallel for private(x)
 		for (y = 0; y < Karnel_Now.rows; y++) {
 			for (x = 0; x < Karnel_Now.cols; x++) {
@@ -875,14 +877,15 @@ void Blind_Deconvolution::UpdateKarnel(KERNEL& Karnel_Now, Mat& QuantImg_Now, Ma
 		//normalize(Image_dst_deblurred2, Image_dst_deblurred2, 0, 200, NORM_MINMAX);
 		//Image_dst_deblurred2.convertTo(Image_dst_deblurred2, CV_8UC1);
 
-		doubleKernel.copyTo(After);
-		energy = norm(Before, After, NORM_L2) / (double)Karnel_Now.size;
-		cout << "  " << (int)k_index << " : energy = " << (double)energy << endl;	// 確認用
-		if (energy < Error) { break; }
+		/* 収束条件付加 */
+		//doubleKernel.copyTo(After);
+		//energy = norm(Before, After, NORM_L2) / (double)Karnel_Now.size;
+		//cout << "  " << (int)k_index << " : energy = " << (double)energy << endl;	// 確認用
+		//if (energy < Error) { break; }
 
 		double main_diff = (double)norm(doubleKernel);
 		double sub_diff = (double)norm(doubleA) * (double)PenaltyParameter_Vec2[0] * (double)blanc_Parameter;
-		cout << "   main_diff = " << (double)main_diff << " , sub_diff = " << (double)sub_diff << endl;	// 確認用
+		//cout << "   main_diff = " << (double)main_diff << " , sub_diff = " << (double)sub_diff << endl;	// 確認用
 		if (main_diff > sub_diff) { PenaltyParameter_Vec2[0] *= incr_Parameter; }
 		else if (main_diff < sub_diff) { PenaltyParameter_Vec2[0] /= decr_Parameter; }
 	}
@@ -1207,7 +1210,210 @@ void ConjugateGradientMethod(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& Lag
 		Numerator2 = multi_vector(Residual_before, Residual_before);
 		Denominator2 = multi_vector(Residual, Residual);
 		BETA += (double)(Numerator2 / Denominator2);
-		BETA /= 3.0;
+		//BETA /= 3.0;	//※
+		//cout << "  BETA = " << (double)BETA << endl;	// 確認用
+
+		// Calculate P_base
+		P_base = Residual + BETA * P_base;
+
+		NextKernel.copyTo(LastKernel);
+		//checkMat_detail(NextKernel);	// 確認用
+	}
+	cout << "   energy = " << (double)energy << endl;	// 確認用
+
+//#pragma omp parallel for private(x)
+//	for (y = 0; y < NextKernel.rows; y++) {
+//		for (x = 0; x < NextKernel.cols; x++) {
+//			double kernel_num = NextKernel.at<double>(y, x);
+//			if (kernel_num < 0) { NextKernel.at<double>(y, x) = 0.0; }	// 負の値は0にする
+//			//else if (kernel_num > 1) { NextKernel.at<double>(y, x) = 1.0; }
+//		}
+//	}
+	KernelMat_Normalization(NextKernel);
+
+	NextKernel.copyTo(NewKernel);
+}
+
+void ConjugateGradientMethod_Gray(Mat& QuantImg, Mat& BlurrImg, Mat& Kernel, Mat& LagrngianMlutipliers, Vec2d& PenaltyParameter, Mat& NewKernel) {
+	int Iterate_Number = 100;
+	double ERROR_END = 1.0e-04;
+	int x, y, c;
+
+	/* Ax=bを解くとしてAxとbを求める */
+	// 画像をCV_64FC1に変換(前処理)
+	Mat BlurredImg_Color, QuantImg_Color;
+	BlurrImg.convertTo(BlurredImg_Color, CV_8UC3);
+	QuantImg.convertTo(QuantImg_Color, CV_8UC3);
+	Mat BlurredImg_Gray, QuantImg_Gray;
+	cvtColor(BlurredImg_Color, BlurredImg_Gray, COLOR_RGB2GRAY);
+	cvtColor(QuantImg_Color, QuantImg_Gray, COLOR_RGB2GRAY);
+	Mat doubleBlurredImg_Gray, doubleQuantImg_Gray;
+	BlurrImg.convertTo(doubleBlurredImg_Gray, CV_64FC1);
+	QuantImg.convertTo(doubleQuantImg_Gray, CV_64FC1);
+
+	Mat doubleBlurredImg_sub = Mat::zeros(doubleBlurredImg_Gray.size(), CV_64F);
+	Mat doubleQuantImg_sub = Mat::zeros(doubleQuantImg_Gray.size(), CV_64F);
+	Mat doubleBlurredImg, doubleQuantImg;
+	Mat planes_BI[] = { Mat_<double>(doubleBlurredImg_sub), Mat::zeros(doubleBlurredImg_sub.size(), CV_64F) };
+	merge(planes_BI, 2, doubleBlurredImg);
+	Mat planes_QI[] = { Mat_<double>(doubleQuantImg_sub), Mat::zeros(doubleQuantImg_sub.size(), CV_64F) };
+	merge(planes_QI, 2, doubleQuantImg);
+	
+	// 入力画像をDFTに指定した大きさに広げる
+	int Mplus = doubleBlurredImg_Gray.rows + Kernel.rows;
+	int Nplus = doubleBlurredImg_Gray.cols + Kernel.cols;
+	int Msize = getOptimalDFTSize(Mplus);
+	int Nsize = getOptimalDFTSize(Nplus);
+	// DFT
+	Mat dft_doubleBlurredImg = Mat::zeros(Msize, Nsize, CV_64FC2);
+	Mat dft_doubleQuantImg = Mat::zeros(Msize, Nsize, CV_64FC2);
+	Mat dft_doubleBlurredImg_part, dft_doubleQuantImg_part;
+	copyMakeBorder(doubleBlurredImg, dft_doubleBlurredImg, Kernel.rows / 2, Msize - Mplus + Kernel.rows / 2, Kernel.cols / 2, Nsize - Nplus + Kernel.cols / 2, BORDER_REPLICATE);
+	dft(dft_doubleBlurredImg, dft_doubleBlurredImg);
+	copyMakeBorder(doubleQuantImg, dft_doubleQuantImg, Kernel.rows / 2, Msize - Mplus + Kernel.rows / 2, Kernel.cols / 2, Nsize - Nplus + Kernel.cols / 2, BORDER_REPLICATE);
+	dft(dft_doubleQuantImg, dft_doubleQuantImg);
+	
+	// カーネル
+	Mat dft_doubleK = Mat::zeros(Msize, Nsize, CV_64FC2);
+	Mat planes2[] = { Mat_<double>(NewKernel), Mat::zeros(NewKernel.size(), CV_64F) };
+	Mat doubleK_sub;
+	merge(planes2, 2, doubleK_sub);
+	copyMakeBorder(doubleK_sub, dft_doubleK, 0, Msize - NewKernel.rows, 0, Nsize - NewKernel.cols, BORDER_CONSTANT, (0.0, 0.0));
+	dft(dft_doubleK, dft_doubleK, 0, dft_doubleK.rows);
+	Mat dft_doubleK2 = Mat::zeros(Msize, Nsize, CV_64FC2);
+	Mat planes2_2[] = { Mat_<double>(Kernel), Mat::zeros(Kernel.size(), CV_64F) };
+	Mat doubleK_sub2;
+	merge(planes2_2, 2, doubleK_sub2);
+	copyMakeBorder(doubleK_sub2, dft_doubleK2, 0, Msize - Kernel.rows, 0, Nsize - Kernel.cols, BORDER_CONSTANT, (0.0, 0.0));
+	dft(dft_doubleK2, dft_doubleK2, 0, dft_doubleK2.rows);
+	Mat dft_A = Mat::zeros(Msize, Nsize, CV_64FC2);
+	Mat planes3[] = { Mat_<double>(LagrngianMlutipliers), Mat::zeros(LagrngianMlutipliers.size(), CV_64F) };
+	Mat A_sub;
+	merge(planes3, 2, A_sub);
+	copyMakeBorder(A_sub, dft_A, 0, Msize - LagrngianMlutipliers.rows, 0, Nsize - LagrngianMlutipliers.cols, BORDER_CONSTANT, (0.0, 0.0));
+	dft(dft_A, dft_A, 0, dft_A.rows);
+	//visualbule_complex(dft_doubleBlurredImg, Image_dst_deblurred2);	// 確認
+	//visualbule_complex(dft_doubleQuantImg, Image_dst_deblurred2);	// 確認
+	//visualbule_complex(dft_doubleK, Image_dst_deblurred2);	// 確認
+	//visualbule_complex(dft_A, Image_dst_deblurred2);	// 確認
+
+	// 計算
+	Mat dft_doubleNewImg, dft_doubleNewImg1, dft_doubleNewImg2;
+	Mat pow_dft_doubleQuantImg;
+	Vec2d before, after, before2, after2, before3, after3;
+	dft_doubleNewImg = Mat::zeros(Msize, Nsize, CV_64FC2);
+	dft_doubleNewImg1 = Mat::zeros(Msize, Nsize, CV_64FC2);
+	dft_doubleNewImg2 = Mat::zeros(Msize, Nsize, CV_64FC2);
+
+	abs_pow_complex(dft_doubleQuantImg, pow_dft_doubleQuantImg);		// 2次元ベクトルの大きさの２乗
+	mulSpectrums(dft_doubleBlurredImg, dft_doubleQuantImg, dft_doubleNewImg2, 0, true);	// 複素共役
+#pragma omp parallel for private(x)
+	for (y = 0; y < Msize; y++) {
+		for (x = 0; x < Nsize; x++) {
+			before = pow_dft_doubleQuantImg.at<Vec2d>(y, x);
+			after = before + PenaltyParameter;
+			//cout << "  before = " << before << " , after = " << after << endl;	// 確認用
+			dft_doubleNewImg.at<Vec2d>(y, x) = after;
+			//cout << "   " << dft_doubleNewImg[c].at<Vec2d>(y, x) << " <- " << after << endl;	// 確認用
+
+			before2 = dft_doubleK2.at<Vec2d>(y, x);
+			before3 = dft_A.at<Vec2d>(y, x);
+			after2 = before2 + before3;
+			multi_complex_2(after2, after2, PenaltyParameter);
+			after3 = dft_doubleNewImg2.at<Vec2d>(y, x);
+			after3 += after2;
+			dft_doubleNewImg2.at<Vec2d>(y, x) = after3;
+		}
+	}
+	mulSpectrums(dft_doubleNewImg, dft_doubleK, dft_doubleNewImg1, 0, false);
+	//visualbule_complex(dft_doubleNewImg, Image_dst_deblurred2);	// 確認
+	//visualbule_complex(dft_doubleNewImg1, Image_dst_deblurred2);	// 確認
+	//visualbule_complex(dft_doubleNewImg2, Image_dst_deblurred2);	// 確認
+	//checkMat_detail(Image_dst_deblurred2);	// 確認
+
+	//inverseDFT
+	Mat doubleNewImg, doubleNewImg1, doubleNewImg2;
+	dft(dft_doubleNewImg1, dft_doubleNewImg1, cv::DFT_INVERSE + cv::DFT_SCALE | cv::DFT_REAL_OUTPUT);
+	doubleNewImg1 = dft_doubleNewImg1(Rect(0, 0, NewKernel.cols, NewKernel.rows));
+	dft(dft_doubleNewImg2, dft_doubleNewImg2, cv::DFT_INVERSE + cv::DFT_SCALE | cv::DFT_REAL_OUTPUT);
+	doubleNewImg2 = dft_doubleNewImg2(Rect(0, 0, NewKernel.cols, NewKernel.rows));
+	
+	//checkMat_detail(dft_doubleNewImg[0]);	// 確認
+	//KernelMat_Normalization(dft_doubleNewImg[0]);
+	//normalize(dft_doubleNewImg[0], dft_doubleNewImg[0], 0, 255, NORM_MINMAX);
+	//dft_doubleNewImg[0].convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
+	//checkMat_detail(Image_dst_deblurred2);	// 確認
+	//doubleNewImg[0].convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
+	//doubleNewImg1[0].convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
+	//doubleNewImg2[0].convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
+
+
+	/* 初期値設定 */
+	Mat NextKernel, LastKernel;		// 初期値Kernel
+	NewKernel.copyTo(LastKernel);
+	NewKernel.copyTo(NextKernel);
+	Mat Residual = Mat::zeros(NewKernel.size(), CV_64F);
+	Mat P_base = Mat::zeros(NewKernel.size(), CV_64F);
+	Mat Mat_tmp_ave = Mat::zeros(NewKernel.size(), CV_64F);
+	Mat_tmp_ave = doubleNewImg2 - doubleNewImg1;
+	Mat_tmp_ave.copyTo(Residual);
+	Mat_tmp_ave.copyTo(P_base);
+	//checkMat_detail(Mat_tmp_ave);	// 確認
+
+	double ALPHA = 0.0, BETA = 0.0;
+	double energy;
+	for (int i_number = 0; i_number < Iterate_Number; i_number++) {
+		// Calculate ALPHA
+		ALPHA = 0.0;
+		double Numerator, Denominator;
+		Numerator = multi_vector(P_base, Residual);		// ベクトルの内積
+		multi_matrix_vector(P_base, dft_doubleNewImg, doubleNewImg);
+		//checkMat_detail(doubleNewImg[0]);	// 確認
+		//doubleNewImg[0].convertTo(Image_dst_deblurred2, CV_8UC1);	// 確認
+		Denominator = multi_vector(P_base, doubleNewImg);
+		ALPHA += (double)(Numerator / Denominator);
+		//cout << "  ALPHA = " << (double)ALPHA << endl;	// 確認用
+
+		// Calculate Kernel
+		NextKernel = LastKernel + ALPHA * P_base;
+#pragma omp parallel for private(x)
+		for (y = 0; y < NextKernel.rows; y++) {
+			for (x = 0; x < NextKernel.cols; x++) {
+				double kernel_num = NextKernel.at<double>(y, x);
+				//cout << "   " << (double)kernel_num << endl;	// 確認用
+				if (kernel_num < 0) { NextKernel.at<double>(y, x) = 0.0; }	// 負の値は0にする
+				//else if (kernel_num > 1) { NextKernel.at<double>(y, x) = 1.0; }
+				//cout << "   " << (double)NextKernel.at<double>(y, x) << endl;	// 確認用
+			}
+		}
+		//cout << endl;
+		//KernelMat_Normalization(NextKernel);
+		//checkMat_detail(LastKernel);	// 確認
+		//checkMat_detail(NextKernel);	// 確認
+
+		Mat Residual_before;
+		Mat Residual_tmp = Mat::zeros(NewKernel.size(), CV_64F);
+		// Calculate Residual
+		Residual.copyTo(Residual_before);
+		Residual_tmp += Residual_before - ALPHA * doubleNewImg;
+		Residual_tmp.copyTo(Residual);
+
+		energy = (double)norm(Residual);
+		//energy = (double)norm(Residual[0]) + (double)norm(Residual[1]) + (double)norm(Residual[2]);
+		//energy = (double)mean(Residual[0])[0] + (double)mean(Residual[1])[0] + (double)mean(Residual[2])[0];
+		//energy /= (double)((double)Residual[0].cols * (double)Residual[0].rows * 3.0);
+		//cout << "  " << (int)i_number << " : energy = " << (double)energy << endl;	// 確認用
+		if (energy < ERROR_END) {
+			cout << "   " << (int)i_number << " : energy = " << (double)energy << endl;	// 確認用
+			break;
+		}
+
+		// Calculate BETA
+		BETA = 0.0;
+		double Numerator2, Denominator2;
+		Numerator2 = multi_vector(Residual_before, Residual_before);
+		Denominator2 = multi_vector(Residual, Residual);
+		BETA += (double)(Numerator2 / Denominator2);
 		//cout << "  BETA = " << (double)BETA << endl;	// 確認用
 
 		// Calculate P_base
