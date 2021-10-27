@@ -89,11 +89,11 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 			/* Update x~ */
 			cout << " Update QuantImg... " << endl;				// 実行確認用
 			//UpdateQuantizedImage(Img[pyr], QuantImg[pyr]);
-			//UpdateQuantizedImage_kmeans(Img[pyr], QuantImg[pyr]);
+			UpdateQuantizedImage_kmeans(Img[pyr], QuantImg[pyr]);
 
 			/* Update x */
 			cout << " Update Img... " << endl;					// 実行確認用
-			UpdateImage(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
+			//UpdateImage(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
 			//UpdateImage_check(Img[pyr], QuantImg[pyr].QMat, Kernel[pyr], BlurrImg[pyr]);
 
 			/*if (i == 1) {
@@ -104,7 +104,7 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 			Mat before_Kernel, after_Kernel;
 			Kernel[pyr].Kernel_normalized.copyTo(before_Kernel);
 			cout << " Update Karnel... " << endl;				// 実行確認用
-			UpdateKarnel(Kernel[pyr], QuantImg[pyr].QMat, BlurrImg[pyr]);
+			//UpdateKarnel(Kernel[pyr], QuantImg[pyr].QMat, BlurrImg[pyr]);
 			Kernel[pyr].Kernel_normalized.copyTo(after_Kernel);
 
 			//double diff_Kernel = (double)norm(before_Kernel, after_Kernel, NORM_L2);
@@ -121,7 +121,7 @@ void Blind_Deconvolution::deblurring(Mat& Img_true, Mat& Img_inoutput, KERNEL& K
 		BlurrImg[pyr].convertTo(Image_dst, CV_8UC3);		// 確認用
 		TrueImg[pyr].convertTo(Img_true, CV_8UC3);
 		Img[pyr].convertTo(Img_inoutput, CV_8UC3);
-		//QuantImg[pyr].QMat.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
+		QuantImg[pyr].QMat.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
 		//TrueImg[pyr].convertTo(Image_dst_deblurred2, CV_8UC3);
 		Kernel_inoutput.copy(Kernel[pyr]);
 		//Mat resize_kernel_original;	// 確認用
@@ -321,14 +321,16 @@ void Blind_Deconvolution::UpdateQuantizedImage_kmeans(Mat& Img_Now, QuantMatDoub
 	feature = feature.reshape(3, feature.rows * feature.cols);
 	//cout << "  " << NewQuantImg.cols * NewQuantImg.rows << endl;	// 確認用
 	//checkMat(feature);	// 確認用
+	//checkMat_detail(feature);	// 確認用
 
 	Mat_<int> labels(feature.size(), CV_32SC1);
 	Mat centers;
 
 	//kmeans法による画像の分類（領域分割）
-	const int MAX_CLUSTERS = 15;
-	kmeans(feature, MAX_CLUSTERS, labels, TermCriteria(TermCriteria::COUNT, 100, 1.0), 1, KMEANS_RANDOM_CENTERS, centers);
-	centers.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
+	const int MAX_CLUSTERS = 20;
+	kmeans(feature, MAX_CLUSTERS, labels, TermCriteria(TermCriteria::COUNT, 10, 1.0), 1, KMEANS_RANDOM_CENTERS, centers);
+	//centers.convertTo(Image_dst_deblurred2, CV_8UC3);		// 確認用
+	//checkMat_detail(feature);	// 確認用
 
 	// ラベリング結果の描画色を決定
 	vector<Vec3b> colors(MAX_CLUSTERS+1);
@@ -336,8 +338,9 @@ void Blind_Deconvolution::UpdateQuantizedImage_kmeans(Mat& Img_Now, QuantMatDoub
 	//cout << "  " << colors[0];	// 確認用
 	for (int label = 1; label <= MAX_CLUSTERS; ++label)
 	{
-		Vec3d ave_colors = Vec3b(0.0, 0.0, 0.0);
+		Vec3d ave_colors = Vec3d(0.0, 0.0, 0.0);
 		int ave_counter = 0;
+		SelectAverageRGB CalcAveRGB = SelectAverageRGB();
 		//クラスタの平均値を計算
 		for (y = 0; y < NewQuantImg.rows; y++) {
 			for (x = 0; x < NewQuantImg.cols; x++) {
@@ -345,7 +348,11 @@ void Blind_Deconvolution::UpdateQuantizedImage_kmeans(Mat& Img_Now, QuantMatDoub
 				//int pix = (y * NewQuantImg.cols + x) * 3;
 				//cout << "  " << (int)labels.data[pix];	// 確認用
 				if ((int)labels.data[pix] == label) {
-					ave_colors += feature.at<Vec3d>(y, x);
+					ave_colors[0] += (double)Img_Now.at<Vec3b>(y, x)[0];
+					ave_colors[1] += (double)Img_Now.at<Vec3b>(y, x)[1];
+					ave_colors[2] += (double)Img_Now.at<Vec3b>(y, x)[2];
+					CalcAveRGB.put(ave_colors);
+					//ave_colors += feature.at<Vec3d>(y, x);
 					//ave_colors += NewQuantImg.at<Vec3d>(y, x);
 					ave_counter++;
 					/*if (pix % 3 == 0) { ave_colors[0] += (double)NewQuantImg.data[pix * 3 + 0]; }
@@ -354,29 +361,31 @@ void Blind_Deconvolution::UpdateQuantizedImage_kmeans(Mat& Img_Now, QuantMatDoub
 						ave_colors[2] += (double)NewQuantImg.data[pix * 3 + 2];
 						ave_counter++;
 					}*/
+					//cout << "  ave_colors = " << (Vec3d)ave_colors << " , color''= " << Img_Now.at<Vec3b>(y, x) << endl;	// 確認用
 					//cout << "  ave_colors = " << (Vec3d)ave_colors << " , color' = " << feature.at<Vec3d>(y, x) << endl;	// 確認用
 					//cout << "  ave_colors = " << (Vec3d)ave_colors << " , color = " << NewQuantImg.at<Vec3d>(y, x) << endl;	// 確認用
 					//cout << "  ave_colors = " << (Vec3d)ave_colors << " , color = [" << (double)NewQuantImg.data[pix * 3 + 0] << ", " << (double)NewQuantImg.data[pix * 3 + 1] << ", " << (double)NewQuantImg.data[pix * 3 + 2] << "]" << endl;	// 確認用
 				}
 			}
 		}
-		//cout << "  ave_colors_sum = " << (Vec3d)ave_colors << endl;	// 確認用
-		//cout << "  ave_counter = " << ave_counter << endl;	// 確認用
+		cout << "  ave_colors_sum = " << (Vec3d)ave_colors << endl;	// 確認用
+		cout << "  ave_counter = " << ave_counter << endl;	// 確認用
 		if (ave_counter != 0) {
 			ave_colors[0] /= (double)ave_counter;
 			ave_colors[1] /= (double)ave_counter;
 			ave_colors[2] /= (double)ave_counter;
 		}
+		CalcAveRGB.selectAverage(ave_colors);
 		//cout << "  ave_colors = " << (Vec3d)ave_colors << endl;	// 確認用
 
 		//クラスタ毎に色を描画
 		//colors[label] = ave_colors;
 		//colors[label] = Vec3b(ave_colors[0], ave_colors[1], ave_colors[2]);
-		colors[label][0] = ave_colors[0];
-		colors[label][1] = ave_colors[1];
-		colors[label][2] = ave_colors[2];
+		colors[label][0] = (uchar)ave_colors[0];
+		colors[label][1] = (uchar)ave_colors[1];
+		colors[label][2] = (uchar)ave_colors[2];
 		//cout << " , " << colors[label];	// 確認用
-		cout << "  ave_colors = " << (Vec3d)ave_colors << " => " << (Vec3d)colors[label] << endl;	// 確認用
+		cout << "  ave_colors = " << (Vec3d)ave_colors << " => " << (Vec3b)colors[label] << endl;	// 確認用
 
 		////ラベル番号に対して色をランダムに割り当てる
 		//colors[label] = Vec3b((rand() & 255), (rand() & 255), (rand() & 255));

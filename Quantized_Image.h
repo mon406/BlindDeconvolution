@@ -228,4 +228,93 @@ void QuantMatDouble::searchUpDown(double& current, double& down, double& up) {
 }
 
 
+// すべての取りうるカラー値から平均値を計算
+class SelectAverageRGB {
+private:
+	int index, index2;
+public:
+	int size;		// 総比較カラー数
+	double most_color[3];	// 最頻カラー値
+	vector<Vec3d> RGB;	// 全ての取り得る画素値
+
+	SelectAverageRGB();
+	void put(Vec3d&);
+	void selectAverage(Vec3d&);
+};
+SelectAverageRGB::SelectAverageRGB() {
+	size = 0;
+	most_color[0] = 0.0;
+	most_color[1] = 0.0;
+	most_color[2] = 0.0;
+	RGB.clear();
+}
+void SelectAverageRGB::put(Vec3d& input) {
+	size++;
+	RGB.push_back(input);
+}
+void SelectAverageRGB::selectAverage(Vec3d& output) {
+	Vec3d now;
+	vector<Vec3d> AllRGB;
+	vector<int> counter;
+#pragma omp parallel for private(index2)
+	for (index = 0; index < size; index++) {
+		now = RGB[index];
+		for (index2 = 0; index2 < AllRGB.size(); index2++) {
+			if (AllRGB[index2] == now) {
+				counter[index2]++;
+			}
+			else {
+				AllRGB.push_back(now);
+				counter.push_back(1);
+			}
+		}
+	}
+
+	int most_color_counter = 0;
+	vector<double> most_colorB, most_colorG, most_colorR;
+	for (index2 = 0; index2 < AllRGB.size(); index2++) {
+		if (counter[index2] > most_color_counter) {
+			most_color_counter = counter[index2];
+			most_colorB.clear();
+			most_colorG.clear();
+			most_colorR.clear();
+			most_colorB.push_back(AllRGB[index2][0]);
+			most_colorG.push_back(AllRGB[index2][1]);
+			most_colorR.push_back(AllRGB[index2][2]);
+		}
+		else if(counter[index2] == most_color_counter) {
+			most_colorB.push_back(AllRGB[index2][0]);
+			most_colorG.push_back(AllRGB[index2][1]);
+			most_colorR.push_back(AllRGB[index2][2]);
+		}
+	}
+	if (most_color_counter == 1) {
+		most_color[0] = most_colorB[0];
+		most_color[1] = most_colorG[0];
+		most_color[2] = most_colorR[0];
+	}
+	else {
+		double ave_colorB = 0.0, ave_colorG = 0.0, ave_colorR = 0.0;
+		for (int i = 0; i < most_colorB.size(); i++) {
+			ave_colorB += most_colorB[i];
+			ave_colorG += most_colorG[i];
+			ave_colorR += most_colorR[i];
+		}
+		ave_colorB /= (double)most_colorB.size();
+		ave_colorG /= (double)most_colorG.size();
+		ave_colorR /= (double)most_colorR.size();
+		most_color[0] = ave_colorB;
+		most_color[1] = ave_colorG;
+		most_color[2] = ave_colorR;
+	}
+
+	output = Vec3d( most_color[0], most_color[1], most_color[2] );
+	AllRGB.clear();
+	counter.clear();
+	most_colorB.clear();
+	most_colorG.clear();
+	most_colorR.clear();
+}
+
+
 #endif
